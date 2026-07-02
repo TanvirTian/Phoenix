@@ -1,0 +1,12 @@
+[package]
+name = "vmm-devices"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "KVM-agnostic device emulation: Bus, 16550 UART, virtio, framebuffer."
+
+[dependencies]
+thiserror.workspace = true
+
+[dev-dependencies]

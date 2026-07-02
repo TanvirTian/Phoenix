@@ -1,0 +1,11 @@
+[package]
+name = "vmm-boot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Boot loaders (Linux bzImage) and the guest physical memory map."
+
+[dependencies]
+thiserror.workspace = true
+vm-memory.workspace = true

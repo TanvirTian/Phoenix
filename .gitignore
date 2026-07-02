@@ -1,0 +1,80 @@
+# ======================================
+# Rust
+# ======================================
+target/
+**/*.rs.bk
+
+# Rust build artifacts
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+*.rlib
+*.rmeta
+*.d
+*.pdb
+
+# ======================================
+# Python
+# ======================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# ======================================
+# Linux kernel build
+# ======================================
+*.cmd
+*.ko
+*.mod
+*.mod.c
+modules.order
+Module.symvers
+
+# ======================================
+# Guest images (large/rebuildable)
+# ======================================
+*.img
+*.qcow2
+*.raw
+*.iso
+*.vmdk
+*.vdi
+
+disk.img
+tiny-bzImage
+bzImage
+vmlinuz*
+initrd*
+initramfs*
+*.cpio
+*.cpio.gz
+
+# ======================================
+# Runtime
+# ======================================
+*.sock
+*.log
+
+# ======================================
+# IDEs
+# ======================================
+.vscode/
+.idea/
+
+# ======================================
+# OS files
+# ======================================
+.DS_Store
+Thumbs.db
+
+# Vim
+*.swp
+*.swo
+*~

@@ -1,0 +1,20 @@
+[package]
+name = "vmm-hypervisor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "KVM abstraction: Hypervisor / Vm / Vcpu traits and the Linux KVM implementation."
+
+[dependencies]
+thiserror.workspace = true
+libc.workspace = true
+kvm-ioctls.workspace = true
+kvm-bindings.workspace = true
+vm-memory.workspace = true
+
+[[bin]]
+name = "hlt-test"
+path = "src/bin/hlt_test.rs"
+
+[dev-dependencies]
