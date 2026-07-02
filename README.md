@@ -5,7 +5,7 @@ This repository is my journey of learning virtualization by building a hyperviso
 
 Drives KVM directly through Linux ioctls and implements its own virtual devices not a QEMU wrapper.
 
-[![Core](https://img.shields.io/badge/core-Rust-orange)](#) [![Frontend](https://img.shields.io/badge/frontend-PyQt6-blue)](#) [![Virtualization](https://img.shields.io/badge/virtualization-KVM-green)](#) [![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)](#) [![Clippy](https://img.shields.io/badge/clippy-0%20warnings-brightgreen)](#)
+![Core](https://img.shields.io/badge/core-Rust-orange) ![Frontend](https://img.shields.io/badge/frontend-PyQt6-blue) ![Virtualization](https://img.shields.io/badge/virtualization-KVM-green) ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey) ![Clippy](https://img.shields.io/badge/clippy-0%20warnings-brightgreen)
 
 Boots real Linux kernels into an interactive shell, mounts VirtIO block devices, and renders a live guest framebuffer through a custom GUI.
 
@@ -13,23 +13,18 @@ Boots real Linux kernels into an interactive shell, mounts VirtIO block devices,
 ## Table of contents
 
 -   [What this is](#what-this-is)
--   [Architecture](#architecture-two-inviolable-boundaries)
-    -   [Engineering conventions](#engineering-conventions)
--   [Workspace layout](#workspace-layout)
+-   [Project layout](#project-layout)
 -   [Quick start](#quick-start)
--   [Implemented components](#implemented-components)
 -   [Demos](#demos)
     -   [Running Linux](#running-linux)
     -   [VirtIO block storage](#virtio-block-storage)
-    -   [Zero-copy framebuffer](#zero-copy-framebuffer)
 -   [Testing](#testing)
 -   [Preparing a guest kernel & disk](#preparing-a-guest-kernel--disk)
 
-----------
 
 ## What this is
 
-`vmm` is a complete, working hypervisor built from the ground up. It opens `/dev/kvm`, sets up guest memory and a virtual CPU, enters the guest in 64-bit long mode, and handles every VM exit itself. All device emulation — the serial port, the VirtIO block device, the framebuffer — is **our own code**, not delegated to QEMU or any other VMM.
+Phoenix is a complete, working hypervisor built from the ground up. It opens  /dev/kvm, sets up guest memory and a virtual CPU, enters the guest in 64-bit long mode, and handles every VM exit itself. All device emulation — the serial port, the VirtIO block device, the framebuffer — is **our own code**, not delegated to QEMU or any other VMM.
 
 A running VM gives you:
 
@@ -39,15 +34,11 @@ Direct-kernel boot of a `bzImage` to a fully interactive BusyBox shell over an e
 
 💾 **VirtIO block storage**
 
-The guest's real `virtio_blk` driver probes our MMIO transport and gets a `/dev/vda` it can `mkfs`/`mount`.
+The guest's real virtio_blk driver probes our MMIO transport and gets a  /dev/vda it can mkfs/mount
 
 🖥️ **A live framebuffer**
 
-Zero-copy shared memory renders guest pixels in the GUI at ~30 FPS (`cat /dev/urandom > /dev/fb0` fills the window with noise).
-
-🎛️ **A polished GUI**
-
-A PyQt6 desktop app with a colored, ANSI-aware serial console, VM configuration, and a display tab.
+Zero-copy shared memory renders guest pixels in the GUI at  30 FPS (cat /dev/urandom > /dev/fb0 fills the window with noise)
 
 
 ## Project layout
@@ -129,7 +120,7 @@ Phoenix
 ### 1. Build and test the core
 
 ```bash
-cd vmm
+cd Phoenix
 cargo build                   # build the whole workspace
 cargo test                    # 41 unit tests: all pass without /dev/kvm
 cargo clippy --all-targets    # zero warnings
@@ -171,61 +162,6 @@ python3 frontend/src/main.py --socket /tmp/vmm.sock
 
 Fill in the kernel/disk/initrd, optionally tick **Display (1024×768)**, click **▶ Start**, use the **Serial Console** tab, and click **🖥 Attach Display** to see the guest framebuffer.
 
-----------
-
-## Implemented components
-
-The hypervisor is built as a collection of independent subsystems. Every major component has been implemented and verified with a working guest.
-
-Component
-
-Description
-
-Verification
-
-**KVM hypervisor**
-
-Safe wrapper around the Linux KVM API. Creates VMs, allocates guest memory, manages vCPUs, and implements the VM-exit completion contract.
-
-Executes `KVM_RUN` and correctly handles `VcpuExit::Hlt`
-
-**Boot pipeline**
-
-Loads a Linux `bzImage`, configures boot parameters, enters 64-bit long mode, and boots an unmodified Linux kernel.
-
-Linux reaches an interactive BusyBox shell
-
-**Device bus & UART**
-
-Generic MMIO/PIO device bus with an emulated 16550 UART for serial I/O.
-
-Full bidirectional serial console
-
-**Control plane**
-
-Tokio-based daemon exposing a Unix Domain Socket API with JSON messages and asynchronous event streaming.
-
-External clients create and control VMs
-
-**VirtIO block device**
-
-VirtIO-MMIO transport, virtqueue implementation, and file-backed block device.
-
-Guest detects `/dev/vda`, mounts and accesses the filesystem
-
-**Desktop frontend**
-
-PyQt6 GUI with an ANSI-aware terminal, VM controls, and configuration panel.
-
-Interactive Linux console inside the GUI
-
-**Framebuffer device**
-
-Zero-copy framebuffer using `memfd` and `SCM_RIGHTS` file descriptor passing.
-
-Guest-generated pixels render live in the display window
-
-----------
 
 ## Demos
 
@@ -256,15 +192,6 @@ virtio_blk virtio0: [vda] 32768 512-byte logical blocks (16.8 MB / 16.0 MiB)
 /dev/vda
 
 ```
-
-### Zero-copy framebuffer
-
-Phoenix implements a shared-memory framebuffer that avoids copying pixel data between the guest and the GUI.
-
-At VM startup, the daemon creates a `memfd`, maps it into its own address space, and exposes the same memory to the guest as a framebuffer. The file descriptor is transferred to the PyQt6 frontend using `SCM_RIGHTS`, allowing both the guest and the GUI to access the identical memory pages.
-
-----------
-
 ## Testing
 
 The project currently contains **41 automated unit tests** covering device emulation, bus routing, protocol serialization, VirtIO queue logic, and other core subsystems.
@@ -324,5 +251,4 @@ Once Linux has booted, the virtual disk appears as `/dev/vda`:
 mkdir -p /mnt
 mount -t ext4 /dev/vda /mnt
 ls /mnt
-
 ```
