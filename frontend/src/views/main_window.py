@@ -77,7 +77,7 @@ def _monospace_font(size: int = 11) -> QFont:
 class MainWindow(QMainWindow):
     def __init__(self, socket_path: str = "/tmp/vmm.sock") -> None:
         super().__init__()
-        self.setWindowTitle("Arena VMM — Console")
+        self.setWindowTitle("Phoenix VMM — Console")
         self.resize(960, 680)
         self.setStyleSheet(_DARK_QSS)
 

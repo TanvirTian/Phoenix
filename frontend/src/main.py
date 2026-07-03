@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Arena VMM frontend (Phase 5).
-
-A PyQt6 GUI that talks to `vmm-daemon` over a Unix Domain Socket (no FFI, per
+"""
+PyQt6 GUI that talks to `vmm-daemon` over a Unix Domain Socket (no FFI, per
 the master spec's Process Boundary rule). Configure a VM, Start/Stop it, and use
 the interactive serial console.
 
@@ -23,12 +22,12 @@ from views.main_window import MainWindow
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Arena VMM frontend")
+    parser = argparse.ArgumentParser(description="Phoenix VMM frontend")
     parser.add_argument("--socket", default="/tmp/vmm.sock", help="daemon UDS path")
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Arena VMM")
+    app.setApplicationName("Phoenix VMM")
     win = MainWindow(socket_path=args.socket)
     win.show()
     return app.exec()
