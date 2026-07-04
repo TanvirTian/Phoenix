@@ -22,6 +22,15 @@ pub const PDE_START: u64 = 0x0000_b000;
 /// Kernel command line load address.
 pub const CMDLINE_START: u64 = 0x0002_0000;
 
+/// --- MP tables (Intel MultiProcessor Spec) --------------------------------
+/// The guest BIOS scans 0xF0000-0xFFFFF for the MP Floating Pointer ("_MP_").
+/// We place the floating pointer here and the configuration table just after.
+pub const MPTABLE_START: u64 = 0x000F_0000;
+
+/// Local APIC and IO-APIC MMIO physical addresses (PC standard).
+pub const APIC_DEFAULT_PHYS: u32 = 0xFEE0_0000; // local APIC
+pub const IOAPIC_DEFAULT_PHYS: u32 = 0xFEC0_0000; // IO-APIC
+
 /// Maximum kernel command line length we support.
 pub const CMDLINE_MAX_LEN: usize = 2048;
 

@@ -34,6 +34,8 @@ pub enum BootRunError {
     Block(#[from] vmm_devices::virtio::block::BlockError),
     #[error("framebuffer: {0}")]
     Framebuffer(#[from] crate::vm::framebuffer::FbError),
+    #[error("tap network device: {0}")]
+    Tap(#[source] std::io::Error),
     #[error("failed to read kernel image {path}: {source}")]
     KernelRead {
         path: String,
@@ -124,6 +126,7 @@ pub fn boot_and_run(
     initrd_path: Option<&str>,
     disk_path: Option<&str>,
     fb_geometry: Option<vmm_devices::fb::FbGeometry>,
+    net_tap: Option<&str>,
     event_tx: Sender<VmEvent>,
     stop: Arc<AtomicBool>,
 ) -> Result<RunningVm, BootRunError> {
@@ -178,6 +181,21 @@ pub fn boot_and_run(
         layout::PDPTE_START,
         layout::PDE_START,
     )?;
+
+    // --- 3b. MP tables (Phase 8): describe the LAPIC/IO-APIC topology so the
+    // guest can configure its timer + interrupt routing instead of falling back
+    // to degraded "virtual wire mode" (which stalls sub-second timers). Written
+    // at 0xF0000 where the guest scans for the "_MP_" floating pointer.
+    {
+        let mptable = vmm_boot::mptable::build(1); // single CPU for now
+        ram.write_slice(layout::MPTABLE_START, &mptable)
+            .map_err(|e| BootRunError::Boot(vmm_boot::linux::BootError::Memory(e.to_string())))?;
+        info!(
+            base = format_args!("{:#x}", layout::MPTABLE_START),
+            len = mptable.len(),
+            "MP tables written"
+        );
+    }
 
     // --- 4. Load the kernel ---
     let image = std::fs::read(kernel_path).map_err(|e| BootRunError::KernelRead {
@@ -282,7 +300,69 @@ pub fn boot_and_run(
         );
     }
 
+    // virtio-net over MMIO (Phase 8). Present when a TAP interface is given.
+    // Registered at virtio slot 1 (base 0xFE001000, IRQ 6); the guest is told
+    // via the kernel cmdline `virtio_mmio.device=0x1000@0xfe001000:6`.
+    let net_dev: Option<Arc<vmm_devices::virtio::net_mmio::VirtioNetMmio>> = match net_tap {
+        Some(tap_name) => {
+            let tap = crate::vm::tap::TapBackend::open(tap_name).map_err(BootRunError::Tap)?;
+            let backend: Arc<dyn vmm_devices::virtio::net::NetBackend> = Arc::new(tap);
+            let mem_access: Arc<dyn vmm_devices::virtio::queue::GuestAccess> =
+                Arc::new(RamAccess { ram: ram.clone() });
+            let net_irq = Arc::new(KvmIrqLine {
+                vm: vm.clone(),
+                irq: layout::VIRTIO_IRQ_BASE + 1,
+            });
+            // Locally-administered, fixed MAC (52:54:00 is the QEMU/KVM OUI).
+            let mac = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
+            let net = Arc::new(vmm_devices::virtio::net_mmio::VirtioNetMmio::new(
+                backend, mem_access, net_irq, mac,
+            ));
+            let base = layout::virtio_mmio_addr(1);
+            bus.register_mmio(
+                BusRange::new(base, layout::VIRTIO_MMIO_SIZE),
+                net.clone() as Arc<dyn vmm_devices::device::Device>,
+            )?;
+            info!(
+                base = format_args!("{base:#x}"),
+                irq = layout::VIRTIO_IRQ_BASE + 1,
+                "virtio-net registered"
+            );
+            Some(net)
+        }
+        None => None,
+    };
+
     let bus = Arc::new(bus);
+
+    // --- RX poll thread (Phase 8): pull frames from the TAP and inject them
+    // into the guest's RX virtqueue. Host frames arrive asynchronously (not in
+    // response to a guest exit), so a dedicated thread bridges them.
+    if let Some(net) = net_dev.clone() {
+        let rx_stop = stop.clone();
+        std::thread::Builder::new()
+            .name("virtio-net-rx".into())
+            .spawn(move || {
+                // Poll the TAP; each host frame is delivered into the guest's RX
+                // virtqueue by the device. `poll_rx_once` returns true when it
+                // both had a frame and a posted buffer to put it in.
+                loop {
+                    if rx_stop.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    match net.poll_rx_once() {
+                        Ok(true) => {} // delivered a frame; keep the loop hot
+                        Ok(false) => {
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                        }
+                        Err(_) => {
+                            std::thread::sleep(std::time::Duration::from_millis(5));
+                        }
+                    }
+                }
+            })
+            .ok();
+    }
 
     // --- 6. vCPU + long-mode entry ---
     // Place the initial stack HIGH in usable RAM (16-byte aligned), well above

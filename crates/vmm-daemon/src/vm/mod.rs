@@ -4,5 +4,6 @@ pub mod boot;
 pub mod exit;
 pub mod framebuffer;
 pub mod state;
+pub mod tap;
 pub mod vm;
 

@@ -6,5 +6,6 @@
 
 pub mod layout;
 pub mod linux;
+pub mod mptable;
 
 pub use linux::{load_kernel, BootError, BootInfo, E820Entry, FbInfo, KernelImage};

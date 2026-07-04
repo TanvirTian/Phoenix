@@ -51,6 +51,11 @@ pub fn handle_exit(exit: VcpuExit, bus: &Bus) -> Result<ExitAction, DispatchErro
             Ok(ExitAction::Continue)
         }
         VcpuExit::Hlt => {
+            // With an in-kernel irqchip + LAPIC, re-enter KVM_RUN promptly:
+            // KVM itself handles the halt and wakes the vCPU on the next timer
+            // or device interrupt. Yielding (not sleeping) keeps the guest's
+            // local-APIC timer advancing, which drives the scheduler tick and
+            // process wakeups (e.g. ping's per-packet interval).
             std::thread::yield_now();
             Ok(ExitAction::Continue)
         }

@@ -274,6 +274,7 @@ impl Manager {
                         initrd.as_deref(),
                         disk.as_deref(),
                         fb_geom,
+                        None, // TAP networking wired via the CLI tool for now
                         event_tx,
                         stop,
                     )

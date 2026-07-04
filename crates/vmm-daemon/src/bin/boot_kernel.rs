@@ -46,11 +46,13 @@ fn main() {
         cmdline_rest.join(" ")
     };
 
-    // Optional initrd via INITRD env var, disk via DISK env var.
+    // Optional initrd via INITRD env var, disk via DISK env var, TAP net via
+    // NET env var (name of a pre-created tap interface, e.g. NET=tap0).
     let initrd = std::env::var("INITRD").ok();
     let disk = std::env::var("DISK").ok();
+    let net = std::env::var("NET").ok();
     println!(
-        "[boot-kernel] kernel={kernel} mem={memory_mb}MiB cmdline={cmdline:?} initrd={initrd:?} disk={disk:?}"
+        "[boot-kernel] kernel={kernel} mem={memory_mb}MiB cmdline={cmdline:?} initrd={initrd:?} disk={disk:?} net={net:?}"
     );
 
     let (tx, rx) = std::sync::mpsc::channel::<VmEvent>();
@@ -63,6 +65,7 @@ fn main() {
         initrd.as_deref(),
         disk.as_deref(),
         None, // no framebuffer in the serial-only CLI tool
+        net.as_deref(),
         tx,
         stop.clone(),
     ) {

@@ -11,6 +11,7 @@
 pub mod block;
 pub mod mmio;
 pub mod net;
+pub mod net_mmio;
 pub mod queue;
 
 /// virtio-mmio "magic value" register content: little-endian "virt".
