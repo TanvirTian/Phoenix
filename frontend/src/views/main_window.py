@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QFont, QFontDatabase
+from PyQt6.QtGui import QAction, QFont, QFontDatabase, QIcon 
 from PyQt6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -77,8 +77,9 @@ def _monospace_font(size: int = 11) -> QFont:
 class MainWindow(QMainWindow):
     def __init__(self, socket_path: str = "/tmp/vmm.sock") -> None:
         super().__init__()
-        self.setWindowTitle("Phoenix VMM — Console")
+        self.setWindowTitle("Phoenix VMM Console")
         self.resize(960, 680)
+        self.setWindowIcon(QIcon("icons/phoenix_icon.png"))
         self.setStyleSheet(_DARK_QSS)
 
         self.socket_path = socket_path

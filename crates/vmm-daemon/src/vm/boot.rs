@@ -21,6 +21,7 @@ use vmm_hypervisor::KvmHypervisor;
 
 use crate::control::protocol::VmEvent;
 use crate::vm::exit::{handle_exit, ExitAction};
+use crate::vm::tap::TapBackend;
 
 #[derive(thiserror::Error, Debug)]
 pub enum BootRunError {
@@ -182,10 +183,10 @@ pub fn boot_and_run(
         layout::PDE_START,
     )?;
 
-    // --- 3b. MP tables (Phase 8): describe the LAPIC/IO-APIC topology so the
-    // guest can configure its timer + interrupt routing instead of falling back
-    // to degraded "virtual wire mode" (which stalls sub-second timers). Written
-    // at 0xF0000 where the guest scans for the "_MP_" floating pointer.
+    // --- 3b. MP tables (Phase 8 timer fix): describe the LAPIC/IO-APIC
+    // topology so the guest can configure its timer + interrupt routing
+    // instead of falling back to degraded "virtual wire mode". Written at
+    // 0xF0000 where the guest scans for the "_MP_" floating pointer.
     {
         let mptable = vmm_boot::mptable::build(1); // single CPU for now
         ram.write_slice(layout::MPTABLE_START, &mptable)
@@ -305,7 +306,7 @@ pub fn boot_and_run(
     // via the kernel cmdline `virtio_mmio.device=0x1000@0xfe001000:6`.
     let net_dev: Option<Arc<vmm_devices::virtio::net_mmio::VirtioNetMmio>> = match net_tap {
         Some(tap_name) => {
-            let tap = crate::vm::tap::TapBackend::open(tap_name).map_err(BootRunError::Tap)?;
+            let tap = TapBackend::open(tap_name).map_err(BootRunError::Tap)?;
             let backend: Arc<dyn vmm_devices::virtio::net::NetBackend> = Arc::new(tap);
             let mem_access: Arc<dyn vmm_devices::virtio::queue::GuestAccess> =
                 Arc::new(RamAccess { ram: ram.clone() });
@@ -383,25 +384,40 @@ pub fn boot_and_run(
     // Optional watchdog (enable with VMM_DEBUG=1): reports whether the vCPU is
     // making progress. Off by default so it doesn't spam the serial console.
     let exit_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
+    // --- DIAGNOSTIC (timer investigation): separate HLT-exit counter ---
+    // Distinguishes "vCPU is exiting KVM_RUN at all" (exit_counter) from
+    // specifically "the LAPIC timer is still waking a halted vCPU"
+    // (hlt_counter). VcpuExit::Hlt is the only exit reason that should recur
+    // purely from timer-driven wakeups once the guest is idle; virtio IRQs
+    // produce their own (non-Hlt) exits. If hlt_counter flatlines while the
+    // guest is otherwise idle, KVM has stopped waking the vCPU on a timer
+    // tick — this is inert instrumentation, no behavior change.
+    let hlt_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
     if debug_enabled() {
         let ec = exit_counter.clone();
+        let hc = hlt_counter.clone();
         let wstop = stop.clone();
         std::thread::Builder::new()
             .name("watchdog".into())
             .spawn(move || {
                 let mut last = 0u64;
+                let mut last_hlt = 0u64;
                 loop {
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     if wstop.load(Ordering::SeqCst) {
                         break;
                     }
                     let now = ec.load(Ordering::Relaxed);
-                    if now == last {
-                        eprintln!("[watchdog] no vcpu exits in 2s (stuck at {now})");
-                    } else {
-                        eprintln!("[watchdog] {} exits in last 2s (total {now})", now - last);
-                    }
+                    let now_hlt = hc.load(Ordering::Relaxed);
+                    eprintln!(
+                        "[watchdog] exits/2s={} (total {}) | hlt/2s={} (total {})",
+                        now.saturating_sub(last),
+                        now,
+                        now_hlt.saturating_sub(last_hlt),
+                        now_hlt
+                    );
                     last = now;
+                    last_hlt = now_hlt;
                 }
             })
             .ok();
@@ -411,6 +427,7 @@ pub fn boot_and_run(
     let run_stop = stop.clone();
     let run_bus = bus.clone();
     let run_counter = exit_counter.clone();
+    let run_hlt_counter = hlt_counter.clone();
     // Move `vm` and `ram` into the thread so their KVM fds / mmap outlive the loop.
     std::thread::Builder::new()
         .name("vcpu-0".into())
@@ -447,6 +464,10 @@ pub fn boot_and_run(
 
                 iter += 1;
                 run_counter.fetch_add(1, Ordering::Relaxed);
+                // DIAGNOSTIC: count Hlt exits specifically (see watchdog above).
+                if matches!(exit, vmm_hypervisor::traits::VcpuExit::Hlt) {
+                    run_hlt_counter.fetch_add(1, Ordering::Relaxed);
+                }
                 if debug_enabled() && iter <= 200 {
                     let is_serial = matches!(
                         &exit,
@@ -503,4 +524,3 @@ pub fn boot_and_run(
 fn debug_enabled() -> bool {
     std::env::var_os("VMM_DEBUG").is_some()
 }
-
