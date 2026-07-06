@@ -1,4 +1,4 @@
-<img width="1536" height="1024" alt="Phoenix_Logo" src="https://github.com/user-attachments/assets/9d7f0925-9bed-40c5-bc03-94169610cc3d" />
+<img width="1316" height="454" alt="Phoenix_Logo" src="https://github.com/user-attachments/assets/4316ceb6-26d1-4986-a78e-9a700948e1a4" />
 
 # Phoenix
 Phoenix is a KVM-based Type-2 Virtual Machine Monitor written in Rust, with a PyQt6 frontend.
